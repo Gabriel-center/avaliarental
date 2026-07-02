@@ -437,7 +437,7 @@ td.status{white-space:nowrap;font-weight:700}
    ========================================================================== */
 
 // Cole aqui a URL do Web App do Apps Script (termina em /exec):
-const URL_WEBAPP = "https://script.google.com/macros/s/AKfycbxDOwpeCgVOSTitM48XjhPueRrfOyTC2diyaLqgdSa2qrx7VXuz5gfCa-dJIKgfP0tKeA/exec";
+const URL_WEBAPP = "COLE_AQUI_A_URL_DO_WEB_APP";
 
 // Senha de acesso ao painel (verificada só no navegador):
 const SENHA = "Rent@l";
@@ -466,7 +466,6 @@ const MESES_NOME  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 function entrar(){
   const v = document.getElementById('pwd').value;
   if(v === SENHA){
-    sessionStorage.setItem('rt_auth','1');
     mostrarApp();
   } else {
     document.getElementById('loginErr').textContent = 'Senha incorreta. Tente novamente.';
@@ -478,7 +477,7 @@ function mostrarApp(){
   document.getElementById('app').classList.remove('hidden');
   iniciar();
 }
-if(sessionStorage.getItem('rt_auth') === '1'){ mostrarApp(); }
+// A senha é sempre solicitada ao abrir a página (sem sessão salva).
 
 /* ============================================================================
    CARGA DE DADOS
@@ -495,7 +494,16 @@ async function carregar(primeira){
       if(primeira) mostrarErroConfig();
       return;
     }
-    const r = await fetch(URL_WEBAPP + '?action=list', {method:'GET'});
+    if(primeira) mostrarCarregando();
+
+    // O Apps Script pode demorar alguns segundos para "acordar" na 1ª chamada.
+    // Damos até 25s antes de considerar falha.
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 25000);
+
+    const r = await fetch(URL_WEBAPP + '?action=list', {method:'GET', signal:ctrl.signal});
+    clearTimeout(timer);
+
     const j = await r.json();
     if(!j.ok) throw new Error(j.erro || 'Falha ao ler dados');
 
@@ -525,6 +533,13 @@ function carimbarAtualizacao(){
     `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function mostrarCarregando(){
+  document.getElementById('kpis').innerHTML =
+    `<div class="panel" style="grid-column:1/-1;text-align:center">
+       <b style="color:var(--blue-400)">Carregando dados…</b>
+       <div class="skeleton" style="margin-top:6px">Buscando avaliações na planilha. Isto pode levar alguns segundos na primeira vez.</div>
+     </div>`;
+}
 function mostrarErroConfig(){
   document.getElementById('kpis').innerHTML =
     `<div class="panel" style="grid-column:1/-1"><b style="color:#ff9d94">Configuração pendente:</b>
@@ -532,8 +547,11 @@ function mostrarErroConfig(){
 }
 function mostrarErroCarga(){
   document.getElementById('kpis').innerHTML =
-    `<div class="panel" style="grid-column:1/-1"><b style="color:#ff9d94">Não foi possível carregar os dados.</b>
-     Verifique se o Web App está publicado e se a URL está correta. Clique em ↻ para tentar de novo.</div>`;
+    `<div class="panel" style="grid-column:1/-1">
+       <b style="color:#ff9d94">Não foi possível carregar os dados.</b>
+       <div class="skeleton" style="margin:6px 0 12px">O Web App pode estar lento ou indisponível. Tente novamente.</div>
+       <button class="btn" onclick="atualizarAgora()">↻ Tentar de novo</button>
+     </div>`;
 }
 
 /* ============================================================================
